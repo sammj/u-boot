@@ -48,7 +48,7 @@
  * Miscellaneous configurable options
  */
 
-#define CONFIG_BOOTCOMMAND		"bootm 20080000 20300000"
+#define CONFIG_BOOTCOMMAND		"bootm 20080000"
 #define CONFIG_ENV_OVERWRITE
 
 #define CONFIG_EXTRA_ENV_SETTINGS \
