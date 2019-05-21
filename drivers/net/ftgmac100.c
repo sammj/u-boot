@@ -152,6 +152,71 @@ static int ftgmac100_mdio_write(struct mii_dev *bus, int phy_addr, int dev_addr,
 	return ret;
 }
 
+static void aspeed_mac1_enable(void)
+{
+	u32 reg;
+
+#define AST_SCU_BASE                 0x1E6E2000
+#define SCU_BASE                 0x1E6E2000
+#define SCU_RESET_CONTROL        0x04
+#define SCU_CLOCK_SELECTION      0x08
+#define SCU_CLOCK_CONTROL        0x0C
+#define SCU_MAC_CLOCK_DELAY      0x48
+#define SCU_SCRATCH_REGISTER     0x40
+#define SCU_HARDWARE_TRAPPING    0x70
+#define SCU_PIN_MUX              0x74
+#define SCU_MULTIFUNCTION_PIN_CTL1_REG     0x80
+#define SCU_MULTIFUNCTION_PIN_CTL3_REG     0x88
+#define SCU_MULTIFUNCTION_PIN_CTL5_REG     0x90
+#define MAC_INTERFACE            0x1C0
+#define GMII                     0x0
+#define MII                      0x40
+#define MAC1_CLOCK_ENABLE        (1 << 20)
+#define MAC2_CLOCK_ENABLE        (1 << 21)
+#define MAC_AHB_CLOCK_DIVIDER    (0x07 << 16)
+#define MAC1_MDIO                (1 << 31)
+#define MAC1_MDC                 (1 << 30)
+#define MAC1_PHY_LINK            (1 << 0)
+#define MAC2_MDC_MDIO            (1 << 2)
+#define MAC2_PHY_LINK            (1 << 1)
+
+
+	/* MAC1 CLOCK/RESET/PHY_LINK/MDC_MDIO in SCU */
+	reg = readl(AST_SCU_BASE + SCU_RESET_CONTROL);
+	writel(reg | BIT(11), AST_SCU_BASE + SCU_RESET_CONTROL);
+	udelay(100);
+
+	reg = readl(AST_SCU_BASE + SCU_CLOCK_CONTROL);
+	writel(reg & ~MAC1_CLOCK_ENABLE, AST_SCU_BASE + SCU_CLOCK_CONTROL);
+	udelay(10000);
+
+	reg = readl(AST_SCU_BASE + SCU_RESET_CONTROL);
+	writel(reg & ~BIT(11), AST_SCU_BASE + SCU_RESET_CONTROL);
+
+	/* Put pins in RMII/NCSI mode
+	 * Strap[6] = 0 and SCUA0[0:3, 12, 14:17]
+	 *
+	 * RMII1CLKI	SCUA0[12] = 0
+	 * RMII1RCLKO	SCUA0[0] = 0
+	 * RMII1TXEN	SCUA0[1] = 0
+	 * RMII1TXD0	SCUA0[2] = 0
+	 * RMII1TXD1	SCUA0[3] = 0
+	 * RMII1RXD0	SCUA0[14] = 0
+	 * RMII1RXD1	SCUA0[15] = 0
+	 * RMII1CRSDV	SCUA0[16] = 0
+	 * RMII1RXER	SCUA0[17] = 0
+	 */
+	reg = readl(AST_SCU_BASE + 0xA0);
+	writel(reg & ~0x3d00f, AST_SCU_BASE + 0xA0);
+
+	reg = readl(AST_SCU_BASE + 0x70);
+	writel(reg & ~BIT(6), AST_SCU_BASE + 0x70);
+
+	/* RMII1 50MHz RCLK output enable */
+	reg = readl(AST_SCU_BASE + 0x48);
+	writel(reg | BIT(29), AST_SCU_BASE + 0x48);
+}
+
 static int ftgmac100_mdio_init(struct udevice *dev)
 {
 	struct ftgmac100_data *priv = dev_get_priv(dev);
@@ -548,6 +613,9 @@ static int ftgmac100_probe(struct udevice *dev)
 	phy_mode = dev_read_string(dev, "phy-mode");
 	priv->ncsi_mode = dev_read_bool(dev, "use-ncsi") ||
 		(phy_mode && strcmp(phy_mode, "NC-SI") == 0);
+
+	if (priv->ncsi_mode)
+		aspeed_mac1_enable();
 
 	priv->iobase = (struct ftgmac100 *)pdata->iobase;
 	priv->phy_mode = pdata->phy_interface;
