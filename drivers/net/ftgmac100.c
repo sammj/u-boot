@@ -581,7 +581,13 @@ static int ftgmac100_ofdata_to_platdata(struct udevice *dev)
 
 	pdata->iobase = devfdt_get_addr(dev);
 	pdata->phy_interface = -1;
-	phy_mode = dev_read_string(dev, "phy-mode");
+
+	printf("phy_mode: %s\n", dev_read_string(dev, "phy-mode"));
+	if (strcmp(dev_read_string(dev, "phy-mode"), "NC-SI") != 0) {
+		printf("Pretending phy-mode reads NC-SI\n");
+		phy_mode = "NC-SI";
+	} else
+		phy_mode = dev_read_string(dev, "phy-mode");
 
 	if (phy_mode)
 		pdata->phy_interface = phy_get_interface_by_name(phy_mode);
@@ -610,9 +616,12 @@ static int ftgmac100_probe(struct udevice *dev)
 	const char *phy_mode;
 	int ret;
 
+	/*
 	phy_mode = dev_read_string(dev, "phy-mode");
 	priv->ncsi_mode = dev_read_bool(dev, "use-ncsi") ||
 		(phy_mode && strcmp(phy_mode, "NC-SI") == 0);
+	*/
+	priv->ncsi_mode = true;
 
 	if (priv->ncsi_mode)
 		aspeed_mac1_enable();
